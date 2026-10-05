@@ -1,0 +1,8 @@
+{
+  "name": "mush",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/orders.test.js"
+  }
+}

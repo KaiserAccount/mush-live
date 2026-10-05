@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Mush</title>
+<style>
+  :root {
+    --ink: #1c1915;
+    --paper: #f4efe6;
+    --amber: #e39a3c;
+    --red: #c23b2e;
+    --ice: #8eafc0;
+    --line: rgba(255,255,255,.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #14181c; color: var(--paper); font-family: "Avenir Next", "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud, #overlay, #toasts, #controls { position: fixed; pointer-events: none; }
+  #hud { inset: 0; z-index: 2; }
+  .top {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 14px 16px 0;
+  }
+  .brand { letter-spacing: .22em; font-size: 13px; font-weight: 700; }
+  .brand span { color: var(--amber); }
+  .order { margin-top: 4px; font-size: 12px; letter-spacing: .04em; }
+  .mile { font-variant-numeric: tabular-nums; font-size: 13px; opacity: .9; }
+  .heat {
+    margin: 10px 16px 0; height: 8px; border-radius: 99px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line); overflow: hidden;
+  }
+  .heat > i { display: block; height: 100%; width: 70%; background: linear-gradient(90deg, #c23b2e, #e39a3c); }
+  .dogs {
+    display: flex; gap: 6px; margin: 8px 16px 0; flex-wrap: wrap;
+  }
+  .slot {
+    min-width: 64px; padding: 4px 8px; border-radius: 8px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--line);
+    font-size: 11px; letter-spacing: .04em;
+  }
+  .slot.empty { opacity: .55; }
+  .slot.hungry { border-color: var(--amber); }
+  .slot.sat { opacity: .4; text-decoration: line-through; }
+  .biome {
+    position: absolute; left: 16px; top: 112px;
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase; opacity: .8;
+  }
+  .map {
+    position: absolute; left: 12px; right: 12px; bottom: 92px;
+    height: 54px;
+  }
+  .rail {
+    position: absolute; left: 8px; right: 8px; top: 22px; height: 3px;
+    background: rgba(255,255,255,.25); border-radius: 99px;
+  }
+  .pin {
+    position: absolute; top: 14px; width: 10px; height: 10px; margin-left: -5px;
+    background: var(--amber); border-radius: 50%; box-shadow: 0 0 0 3px rgba(227,154,60,.25);
+  }
+  .camp {
+    position: absolute; top: 16px; width: 8px; height: 8px; margin-left: -4px;
+    border-radius: 50%; background: #d7dde2; border: 1px solid #1c1915;
+  }
+  .camp.on { background: var(--red); }
+  .camp span {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; letter-spacing: .04em; white-space: nowrap; opacity: .8;
+  }
+  #toasts {
+    left: 16px; right: 16px; top: 118px; z-index: 3;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .toast {
+    align-self: flex-start; background: rgba(20,16,12,.72);
+    border-left: 3px solid var(--amber); padding: 6px 10px; font-size: 13px;
+    animation: fade 2.4s ease forwards;
+  }
+  @keyframes fade { 0% { opacity: 0; transform: translateY(6px);} 12% { opacity: 1; transform: none;} 80% { opacity: 1;} 100% { opacity: 0;} }
+  #controls {
+    left: 0; right: 0; bottom: 0; z-index: 4; pointer-events: none;
+    display: flex; justify-content: space-between; padding: 12px; gap: 8px;
+  }
+  #controls button, #overlay button {
+    pointer-events: auto; border: 0; background: rgba(20,16,12,.78); color: var(--paper);
+    border-radius: 12px; padding: 12px 14px; font: inherit; letter-spacing: .08em;
+    text-transform: uppercase; font-size: 12px;
+  }
+  #controls button.primary { background: var(--red); }
+  #overlay {
+    inset: 0; z-index: 5; display: none; place-items: center;
+    background: rgba(10,12,14,.62); pointer-events: auto;
+  }
+  #overlay.show { display: grid; }
+  .card {
+    width: min(440px, calc(100% - 28px)); background: #1b1714; border-radius: 16px;
+    padding: 22px; border: 1px solid rgba(255,255,255,.08);
+  }
+  .card h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: .18em; }
+  .card h1 span { color: var(--amber); }
+  .card p { margin: 0 0 12px; line-height: 1.45; color: #e6dfd4; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hint { opacity: .7; font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="top">
+    <div>
+      <div class="brand">MU<span>SH</span></div>
+      <div class="order" id="order-line">Nell · medicine · Village</div>
+    </div>
+    <div class="mile" id="mile">0.0 mi · pin 0</div>
+  </div>
+  <div class="heat"><i id="heat"></i></div>
+  <div class="dogs" id="dogs"></div>
+  <div class="biome" id="biome">River ice</div>
+  <div class="map" id="map"></div>
+</div>
+<div id="toasts"></div>
+<div id="controls">
+  <div>
+    <button id="left">Haw</button>
+    <button id="right">Gee</button>
+  </div>
+  <div>
+    <button id="biscuit">Biscuit</button>
+    <button id="jump" class="primary">Jump</button>
+    <button id="slide">Slide</button>
+  </div>
+</div>
+<div id="overlay">
+  <div class="card">
+    <h1>MU<span>SH</span></h1>
+    <p id="over-copy">The line sat. Pin holds.</p>
+    <div class="row">
+      <button id="again" class="primary">Mush from pin</button>
+      <button id="hitch">Hitch next dog</button>
+    </div>
+    <div class="hint">Arrows or swipe. Up jumps the wave. Down slides. Space throws a biscuit. Dogs sit. They do not die.</div>
+  </div>
+</div>
+<script src="config.js"></script>
+<script src="orders.js"></script>
+<script src="three.min.js"></script>
+<script>
+const CAMPS = [
+  { name: "Yard", mile: 0 },
+  { name: "River Ice", mile: 40 },
+  { name: "Spruce Cut", mile: 95 },
+  { name: "Blowout Ridge", mile: 160 },
+  { name: "Night Lamp", mile: 235 },
+  { name: "Village", mile: 320 }
+];
+const ROSTER = [
+  { name: "Red", job: "lead", color: 0xd7c4a8, coat: 0xc23b2e, jump: 1.25, short: false },
+  { name: "Hinge", job: "wheel", color: 0x8d6b52, coat: 0, jump: 1.05, short: false },
+  { name: "Pip", job: "swing", color: 0xf0e6d4, coat: 0, jump: 0.62, short: true },
+  { name: "Nook", job: "team", color: 0x6e5344, coat: 0, jump: 1.15, short: false },
+  { name: "Sable", job: "swing", color: 0xc4a484, coat: 0x2f3d44, jump: 1.1, short: false },
+  { name: "Drum", job: "wheel", color: 0x4e342e, coat: 0, jump: 0.95, short: false },
+  { name: "Lark", job: "team", color: 0xb08968, coat: 0, jump: 1.2, short: false },
+  { name: "Boon", job: "team", color: 0xefe6dc, coat: 0xe39a3c, jump: 1.05, short: false }
+];
+const SAVE = "mush-pin-v1";
+const QUEUE = "mush-queue-v1";
+const load = () => {
+  try { return JSON.parse(localStorage.getItem(SAVE)) || MushOrders.fresh(); }
+  catch (e) { return MushOrders.fresh(); }
+};
+const save = (s) => localStorage.setItem(SAVE, JSON.stringify(s));
+const readQueue = () => {
+  try { return JSON.parse(localStorage.getItem(QUEUE)) || []; }
+  catch (e) { return []; }
+};
+const writeQueue = (q) => localStorage.setItem(QUEUE, JSON.stringify(q));
+function deviceId() {
+  const key = "mush-device";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = (crypto.randomUUID && crypto.randomUUID()) || ("mush-" + Date.now());
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+function pushQueue(item) {
+  const q = readQueue();
+  q.push(item);
+  const state = q.filter((entry) => entry.kind === "state").slice(-1);
+  const rest = q.filter((entry) => entry.kind !== "state").slice(-80);
+  writeQueue(rest.concat(state));
+  flushSoon();
+}
+function queueEvent(ev, mileNow) {
+  pushQueue({ kind: "event", name: ev.name, mile: mileNow, payload: ev.payload });
+}
+function queueDelivery(row, mileNow) {
+  pushQueue({ kind: "delivery", orderCode: row.orderCode, status: row.status, mile: mileNow });
+}
+function queueState() {
+  const q = readQueue().filter((item) => item.kind !== "state");
+  q.push({ kind: "state" });
+  writeQueue(q);
+  flushSoon();
+}
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xc5d4dc, 12, 46);
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 80);
+camera.position.set(0, 3.4, 7.4);
+
+scene.add(new THREE.HemisphereLight(0xdfe7ee, 0x6d5a48, 0.85));
+const sun = new THREE.DirectionalLight(0xfff1d6, 1.15);
+sun.position.set(-6, 10, 4);
+sun.castShadow = true;
+scene.add(sun);
+const amber = new THREE.PointLight(0xe39a3c, 0, 8);
+amber.position.set(0, 1.2, 1);
+scene.add(amber);
+
+const snowMat = new THREE.MeshStandardMaterial({ color: 0xe7eef2, roughness: 0.92 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(28, 90), snowMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.z = -28;
+ground.receiveShadow = true;
+scene.add(ground);
+const trail = new THREE.Mesh(
+  new THREE.PlaneGeometry(5.4, 90),
+  new THREE.MeshStandardMaterial({ color: 0xd5e0e6, roughness: 1 })
+);
+trail.rotation.x = -Math.PI / 2;
+trail.position.y = 0.02;
+trail.position.z = -28;
+scene.add(trail);
+
+function makeDog(spec) {
+  const g = new THREE.Group();
+  const fur = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.72 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.46, 4, 8), fur);
+  body.rotation.z = Math.PI / 2;
+  body.position.y = 0.34;
+  body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), fur);
+  head.position.set(0.36, 0.46, 0);
+  g.add(head);
+  const earMat = new THREE.MeshStandardMaterial({ color: 0x3e342c, roughness: 0.6 });
+  const ears = new THREE.Group();
+  [-0.08, 0.08].forEach((z) => {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 6), earMat);
+    ear.position.set(0.34, 0.64, z);
+    ears.add(ear);
+  });
+  g.add(ears);
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.28, 6), fur);
+  tail.position.set(-0.38, 0.46, 0);
+  tail.rotation.z = 0.8;
+  g.add(tail);
+  if (spec.coat) {
+    const coat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.06, 0.3),
+      new THREE.MeshStandardMaterial({ color: spec.coat, roughness: 0.45 })
+    );
+    coat.position.set(0.02, 0.52, 0);
+    g.add(coat);
+  }
+  g.userData = { ears, tail, spec };
+  return g;
+}
+
+let run = MushOrders.normalize(load());
+let dogsUnlocked = run.dogs;
+const dogObjs = ROSTER.map((spec, i) => {
+  const mesh = makeDog(spec);
+  mesh.position.set(i % 2 === 0 ? -0.28 : 0.28, 0, -2.4 - i * 1.35);
+  scene.add(mesh);
+  return { spec, mesh, hunger: 0.2 + i * 0.05, sat: false, jumpT: -1, basket: 0 };
+});
+
+const sled = new THREE.Group();
+const wood = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.6 });
+const basket = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.28, 1.3), wood);
+basket.position.y = 0.32;
+basket.castShadow = true;
+sled.add(basket);
+const chestCanvas = document.createElement("canvas");
+chestCanvas.width = 128;
+chestCanvas.height = 64;
+const chestTex = new THREE.CanvasTexture(chestCanvas);
+const chest = new THREE.Mesh(
+  new THREE.BoxGeometry(0.36, 0.18, 0.28),
+  new THREE.MeshStandardMaterial({ map: chestTex, color: 0xffffff, roughness: 0.55 })
+);
+chest.position.set(0, 0.16, -0.05);
+chest.castShadow = true;
+chest.name = "chest";
+basket.add(chest);
+const signCanvas = document.createElement("canvas");
+signCanvas.width = 256;
+signCanvas.height = 64;
+const signTex = new THREE.CanvasTexture(signCanvas);
+const sign = new THREE.Group();
+const signPost = new THREE.Mesh(
+  new THREE.BoxGeometry(0.08, 1.1, 0.08),
+  new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.7 })
+);
+signPost.position.y = 0.55;
+const signBoard = new THREE.Mesh(
+  new THREE.BoxGeometry(1.15, 0.32, 0.06),
+  new THREE.MeshStandardMaterial({ map: signTex, color: 0xffffff, roughness: 0.8 })
+);
+signBoard.position.y = 1.15;
+sign.add(signPost, signBoard);
+sign.visible = false;
+scene.add(sign);
+const rider = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.16, 0.42, 4, 8),
+  new THREE.MeshStandardMaterial({ color: 0x2c3338, roughness: 0.5 })
+);
+rider.position.set(0, 0.78, 0.15);
+sled.add(rider);
+const scarf = new THREE.Mesh(
+  new THREE.BoxGeometry(0.22, 0.08, 0.22),
+  new THREE.MeshStandardMaterial({ color: 0xc23b2e })
+);
+scarf.position.set(0, 1.02, 0.18);
+sled.add(scarf);
+scene.add(sled);
+
+const trees = [];
+for (let i = 0; i < 28; i++) {
+  const t = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.1, 0.8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a372c })
+  );
+  trunk.position.y = 0.4;
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(0.55, 1.8, 7),
+    new THREE.MeshStandardMaterial({ color: 0x1e3a32, roughness: 0.8 })
+  );
+  cone.position.y = 1.5;
+  t.add(trunk, cone);
+  t.position.set(i % 2 === 0 ? -4.2 - (i % 3) : 4.2 + (i % 3), 0, -i * 3.1);
+  scene.add(t);
+  trees.push(t);
+}
+
+const obstacles = [];
+function makeObstacle(kind) {
+  const g = new THREE.Group();
+  if (kind === "log") {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 1.5, 8),
+      new THREE.MeshStandardMaterial({ color: 0x6a4a32 })
+    );
+    m.rotation.z = Math.PI / 2;
+    m.position.y = 0.28;
+    g.add(m);
+  } else if (kind === "branch") {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.12, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0x3d4f3a })
+    );
+    m.position.y = 1.05;
+    g.add(m);
+  } else {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.08, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x7f9eae, roughness: 0.3, metalness: 0.05 })
+    );
+    m.position.y = 0.06;
+    g.add(m);
+  }
+  g.visible = false;
+  scene.add(g);
+  return { mesh: g, kind, lane: 0, live: false };
+}
+for (let i = 0; i < 10; i++) obstacles.push(makeObstacle("log"));
+
+const snowBits = new THREE.Points(
+  new THREE.BufferGeometry(),
+  new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, transparent: true, opacity: 0.8 })
+);
+{
+  const arr = new Float32Array(400 * 3);
+  for (let i = 0; i < 400; i++) {
+    arr[i * 3] = (Math.random() - 0.5) * 12;
+    arr[i * 3 + 1] = Math.random() * 6;
+    arr[i * 3 + 2] = -Math.random() * 40;
+  }
+  snowBits.geometry.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+  scene.add(snowBits);
+}
+
+let pin = run.pin || 0;
+let mile = pin;
+let heat = 0.78;
+let lane = 0;
+let laneX = 0;
+let wind = 0;
+let jumping = 0;
+let sliding = 0;
+let speed = 13;
+let spawnIn = 1.1;
+let alive = true;
+let won = false;
+let lastPlantedMile = pin;
+let steered = false;
+let syncing = false;
+let last = performance.now();
+const keys = {};
+
+function biomeAt(m) {
+  const cycle = MushOrders.cycleMile(m);
+  if (cycle >= 320) return { name: "Village", fog: 0x243044, amb: 0.55, sun: 0.4, amber: 2.2, trees: 0.2, drain: 0.03 };
+  if (cycle >= 235) return { name: "Night Lamp", fog: 0x101820, amb: 0.35, sun: 0.22, amber: 1.4, trees: 0.35, drain: 0.055 };
+  if (cycle >= 160) return { name: "Blowout Ridge", fog: 0xe7eef2, amb: 0.95, sun: 0.7, amber: 0.2, trees: 0.05, drain: 0.09 };
+  if (cycle >= 95) return { name: "Spruce Cut", fog: 0x9aada8, amb: 0.7, sun: 0.85, amber: 0.15, trees: 1, drain: 0.048 };
+  return { name: "River Ice", fog: 0xc5d4dc, amb: 0.85, sun: 1.1, amber: 0.1, trees: 0.15, drain: 0.036 };
+}
+function campIndex(m) {
+  let idx = 0;
+  CAMPS.forEach((c, i) => { if (m + 0.01 >= c.mile) idx = i; });
+  return idx;
+}
+function toast(text) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = text;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+function renderDogs() {
+  const box = document.getElementById("dogs");
+  box.innerHTML = "";
+  ROSTER.forEach((spec, i) => {
+    const d = document.createElement("div");
+    const obj = dogObjs[i];
+    if (i >= dogsUnlocked) {
+      const need = CAMPS[Math.min(CAMPS.length - 1, 1 + Math.floor((i - 2) / 1))];
+      d.className = "slot empty";
+      d.textContent = "empty · " + (i < 4 ? "River" : i < 6 ? "Spruce" : "Ridge");
+    } else if (obj.sat) {
+      d.className = "slot sat";
+      d.textContent = spec.name + " sat";
+    } else if (obj.hunger > 0.72) {
+      d.className = "slot hungry";
+      d.textContent = spec.name + " · ears";
+    } else {
+      d.className = "slot";
+      d.textContent = spec.name + " · " + spec.job;
+    }
+    box.appendChild(d);
+  });
+}
+function renderMap() {
+  const map = document.getElementById("map");
+  const max = CAMPS[CAMPS.length - 1].mile;
+  map.innerHTML = '<div class="rail"></div>';
+  CAMPS.forEach((c) => {
+    const el = document.createElement("div");
+    el.className = "camp" + (pin + 0.1 >= c.mile ? " on" : "");
+    el.style.left = (c.mile / max * 100) + "%";
+    el.innerHTML = "<span>" + c.name + "</span>";
+    map.appendChild(el);
+  });
+  const pinEl = document.createElement("div");
+  pinEl.className = "pin";
+  pinEl.style.left = (Math.min(MushOrders.cycleMile(mile), max) / max * 100) + "%";
+  map.appendChild(pinEl);
+}
+function applyBiome() {
+  const b = biomeAt(mile);
+  document.getElementById("biome").textContent = b.name;
+  scene.fog.color.setHex(b.fog);
+  scene.background = new THREE.Color(b.fog);
+  sun.intensity = b.sun;
+  amber.intensity = b.amber;
+  trees.forEach((t) => { t.visible = b.trees > 0.2; });
+  return b;
+}
+function paintLabel(canvas, text) {
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = canvas === signCanvas ? "#f4efe6" : "#c23b2e";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = canvas === signCanvas ? "#1c1915" : "#f4efe6";
+  ctx.font = "bold " + (canvas.width > 200 ? 22 : 28) + "px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+}
+function paintOrder() {
+  const order = MushOrders.activeDef(run);
+  document.getElementById("order-line").textContent = MushOrders.line(run);
+  paintLabel(chestCanvas, order.cargo);
+  paintLabel(signCanvas, order.recipient);
+  chestTex.needsUpdate = true;
+  signTex.needsUpdate = true;
+}
+function persist() {
+  run.pin = pin;
+  run.dogs = dogsUnlocked;
+  if (mile > run.bestMile) run.bestMile = mile;
+  save(run);
+  queueState();
+}
+function playerMoved() {
+  return steered || mile > pin + 2.5 || !alive;
+}
+function supabaseConfig() {
+  const cfg = window.MUSH_SUPABASE;
+  if (!cfg || !cfg.url || !cfg.anonKey) return null;
+  return cfg;
+}
+let flushTimer = 0;
+let flushing = false;
+function flushSoon() {
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flushQueue, 250);
+}
+async function supa(path, options) {
+  const cfg = supabaseConfig();
+  if (!cfg) return null;
+  const headers = Object.assign({
+    apikey: cfg.anonKey,
+    Authorization: "Bearer " + cfg.anonKey,
+    "Content-Type": "application/json",
+    "Accept-Profile": "mush",
+    "Content-Profile": "mush"
+  }, options.headers || {});
+  const res = await fetch(cfg.url.replace(/\/$/, "") + "/rest/v1/" + path, {
+    method: options.method || "GET",
+    headers: headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  if (!res.ok) throw new Error("supabase " + res.status);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+async function flushQueue() {
+  if (flushing || !supabaseConfig()) return;
+  flushing = true;
+  const id = deviceId();
+  const q = readQueue();
+  let index = 0;
+  try {
+    await supa("profile?on_conflict=device_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: { device_id: id }
+    });
+    for (; index < q.length; index++) {
+      const item = q[index];
+      if (item.kind === "event") {
+        await supa("event", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: { device_id: id, name: item.name, mile: item.mile, payload: item.payload || {} }
+        });
+      } else if (item.kind === "delivery") {
+        await supa("delivery", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: { device_id: id, order_code: item.orderCode, status: item.status, mile: item.mile }
+        });
+      } else if (item.kind === "state") {
+        await supa("run_state?on_conflict=device_id", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: MushOrders.toRow(run, id)
+        });
+      }
+    }
+  } catch (err) {
+    // Keep the unsent tail. Local play does not wait on the network.
+  } finally {
+    const extra = readQueue().slice(q.length);
+    writeQueue(q.slice(index).concat(extra));
+    flushing = false;
+  }
+}
+async function pullRemote() {
+  const cfg = supabaseConfig();
+  if (cfg && readQueue().length) await flushQueue();
+  if (cfg && !playerMoved() && readQueue().length === 0) {
+    try {
+      const id = deviceId();
+      await supa("profile?on_conflict=device_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+        body: { device_id: id }
+      });
+      const rows = await supa("run_state?device_id=eq." + encodeURIComponent(id) + "&select=*");
+      const remote = rows && rows[0];
+      if (remote && !playerMoved()) {
+        run = MushOrders.mergeRemote(run, remote);
+        pin = run.pin;
+        dogsUnlocked = run.dogs;
+        mile = pin;
+        lastPlantedMile = pin;
+        dogObjs.forEach((dog, i) => { dog.mesh.visible = i < dogsUnlocked && !dog.sat; });
+        paintOrder();
+        save(run);
+        renderDogs();
+        renderMap();
+        applyBiome();
+      }
+    } catch (err) {
+      // Offline boot keeps the localStorage run.
+    }
+  }
+  queueEvent({ name: "boot", payload: { camp: MushOrders.campNameAt(pin), order: run.activeOrder } }, pin);
+  queueState();
+}
+function fail(reason) {
+  if (!alive) return;
+  alive = false;
+  pin = lastPlantedMile;
+  const campName = MushOrders.campNameAt(pin);
+  run.pin = pin;
+  run.dogs = dogsUnlocked;
+  const result = MushOrders.onFail(run, campName, mile);
+  run = result.state;
+  run.pin = pin;
+  run.dogs = dogsUnlocked;
+  if (result.delivery) queueDelivery(result.delivery, mile);
+  result.events.forEach((ev) => queueEvent(ev, mile));
+  persist();
+  document.getElementById("over-copy").textContent = reason + " Pin holds at " + campName + ". A few runs to the village.";
+  document.getElementById("overlay").classList.add("show");
+  renderMap();
+}
+function resetRun() {
+  const cont = MushOrders.onContinue(run, MushOrders.campNameAt(pin));
+  run = cont.state;
+  cont.events.forEach((ev) => queueEvent(ev, pin));
+  mile = pin;
+  lastPlantedMile = pin;
+  heat = 0.8;
+  lane = 0;
+  jumping = 0;
+  sliding = 0;
+  speed = 13;
+  alive = true;
+  won = false;
+  dogObjs.forEach((d, i) => {
+    d.sat = false;
+    d.hunger = 0.15;
+    d.basket = 0;
+    d.mesh.visible = i < dogsUnlocked;
+  });
+  obstacles.forEach((o) => { o.live = false; o.mesh.visible = false; });
+  document.getElementById("overlay").classList.remove("show");
+  persist();
+  toast("Mush. Feed the ears. Hold the line.");
+  renderDogs();
+}
+function throwBiscuit() {
+  if (!alive) return;
+  const hungry = dogObjs
+    .map((d, i) => ({ d, i }))
+    .filter((x) => x.i < dogsUnlocked && !x.d.sat)
+    .sort((a, b) => b.d.hunger - a.d.hunger)[0];
+  if (!hungry) return;
+  hungry.d.hunger = 0.05;
+  heat = Math.min(1, heat + 0.16);
+  const air = jumping > 0;
+  toast(air ? hungry.d.spec.name + " leapt and caught it" : hungry.d.spec.name + " caught it");
+  renderDogs();
+}
+function hitch() {
+  if (dogsUnlocked >= 8) { toast("Line is full"); return; }
+  dogsUnlocked += 1;
+  const spec = ROSTER[dogsUnlocked - 1];
+  persist();
+  dogObjs[dogsUnlocked - 1].mesh.visible = true;
+  toast(spec.name + " hitched · " + spec.job);
+  renderDogs();
+}
+function fillObstacle(slot, kind) {
+  while (slot.mesh.children.length) slot.mesh.remove(slot.mesh.children[0]);
+  let m;
+  if (kind === "log") {
+    m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 1.5, 8),
+      new THREE.MeshStandardMaterial({ color: 0x6a4a32 })
+    );
+    m.rotation.z = Math.PI / 2;
+    m.position.y = 0.28;
+  } else if (kind === "branch") {
+    m = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.12, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0x3d4f3a })
+    );
+    m.position.y = 1.05;
+  } else {
+    m = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.08, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x7f9eae, roughness: 0.3 })
+    );
+    m.position.y = 0.06;
+  }
+  m.castShadow = true;
+  slot.mesh.add(m);
+  slot.kind = kind;
+}
+function spawn() {
+  const slot = obstacles.find((o) => !o.live);
+  if (!slot) return;
+  const b = biomeAt(mile);
+  const weights = MushOrders.weights(run);
+  const kind = b.name === "Spruce Cut" && Math.random() < weights.branch ? "branch" : (Math.random() < 0.25 ? "gap" : "log");
+  fillObstacle(slot, kind);
+  slot.lane = [-1.7, 0, 1.7][Math.floor(Math.random() * 3)];
+  slot.mesh.position.set(slot.lane, 0, -42);
+  slot.mesh.visible = true;
+  slot.live = true;
+}
+
+addEventListener("keydown", (e) => {
+  keys[e.key.toLowerCase()] = true;
+  if (["arrowleft", "arrowright", "arrowup", "arrowdown", "a", "d", "w", "s", " "].indexOf(e.key.toLowerCase()) !== -1) steered = true;
+  if (e.key === "ArrowLeft" || e.key === "a") lane = Math.max(-1, lane - 1);
+  if (e.key === "ArrowRight" || e.key === "d") lane = Math.min(1, lane + 1);
+  if ((e.key === "ArrowUp" || e.key === "w") && jumping <= 0 && alive) jumping = 0.02;
+  if (e.key === "ArrowDown" || e.key === "s") sliding = 0.45;
+  if (e.key === " ") { e.preventDefault(); throwBiscuit(); }
+});
+addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+document.getElementById("left").onclick = () => { steered = true; lane = Math.max(-1, lane - 1); };
+document.getElementById("right").onclick = () => { steered = true; lane = Math.min(1, lane + 1); };
+document.getElementById("jump").onclick = () => { steered = true; if (jumping <= 0 && alive) jumping = 0.02; };
+document.getElementById("slide").onclick = () => { steered = true; sliding = 0.45; };
+document.getElementById("biscuit").onclick = throwBiscuit;
+document.getElementById("again").onclick = resetRun;
+document.getElementById("hitch").onclick = hitch;
+
+let touchX = 0, touchY = 0;
+renderer.domElement.addEventListener("touchstart", (e) => {
+  touchX = e.changedTouches[0].clientX;
+  touchY = e.changedTouches[0].clientY;
+}, { passive: true });
+renderer.domElement.addEventListener("touchend", (e) => {
+  const dx = e.changedTouches[0].clientX - touchX;
+  const dy = e.changedTouches[0].clientY - touchY;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 24) { steered = true; lane = dx < 0 ? Math.max(-1, lane - 1) : Math.min(1, lane + 1); }
+  else if (dy < -24 && jumping <= 0 && alive) { steered = true; jumping = 0.02; }
+  else if (dy > 24) { steered = true; sliding = 0.45; }
+}, { passive: true });
+
+function tick(now) {
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  const b = applyBiome();
+  if (alive) {
+    speed = Math.min(26, speed + dt * 0.35);
+    const pull = dogObjs.filter((d, i) => i < dogsUnlocked && !d.sat).length / Math.max(2, dogsUnlocked);
+    mile += dt * speed * 0.08 * (0.55 + pull);
+    heat -= dt * b.drain * (1 + speed / 40);
+    const weights = MushOrders.weights(run);
+    wind = b.name === "Blowout Ridge" ? Math.sin(now / 400) * weights.wind : 0;
+    if (wind > weights.gust && Math.random() < dt * 0.8) lane = Math.max(-1, Math.min(1, lane + (Math.random() < 0.5 ? -1 : 1)));
+    spawnIn -= dt;
+    if (spawnIn <= 0) {
+      spawn();
+      spawnIn = Math.max(0.7, 1.45 - speed / 40);
+    }
+    dogObjs.forEach((d, i) => {
+      if (i >= dogsUnlocked || d.sat) return;
+      d.hunger = Math.min(1, d.hunger + dt * 0.07);
+      if (d.hunger > 0.9) heat -= dt * 0.04;
+    });
+    if (heat <= 0) {
+      const rear = [...dogObjs].slice(0, dogsUnlocked).reverse().find((d) => !d.sat);
+      if (rear) {
+        rear.sat = true;
+        const sit = MushOrders.onSit(run, MushOrders.campNameAt(lastPlantedMile));
+        run = sit.state;
+        sit.events.forEach((ev) => queueEvent(ev, mile));
+        toast(rear.spec.name + " sat. Line is shorter.");
+        heat = 0.28;
+        renderDogs();
+        if (dogObjs.slice(0, dogsUnlocked).every((d) => d.sat)) fail("The line sat.");
+      }
+    }
+    MushOrders.campsCrossed(lastPlantedMile, mile).forEach((camp) => {
+      lastPlantedMile = camp.mile;
+      const planted = MushOrders.onCamp(run, camp);
+      run = planted.state;
+      pin = run.pin;
+      planted.texts.forEach(toast);
+      planted.events.forEach((ev) => queueEvent(ev, camp.mile));
+      if (planted.delivered) queueDelivery(planted.delivered, camp.mile);
+      paintOrder();
+      const slot = campIndex(MushOrders.cycleMile(camp.mile));
+      const want = Math.min(8, 2 + slot * 2);
+      while (dogsUnlocked < want) hitch();
+      persist();
+    });
+    const dist = MushOrders.deliverDistance(run, mile);
+    sign.visible = dist !== null && dist < 7 && dist > 0.2;
+    if (sign.visible) sign.position.set(2.35, 0, -Math.min(16, Math.max(2.2, dist)));
+  }
+
+  const targetX = lane * 1.7 + wind * 0.25;
+  laneX += (targetX - laneX) * Math.min(1, dt * 8);
+  sled.position.x = laneX;
+  sled.position.y = 0;
+  if (jumping > 0) {
+    jumping += dt;
+    const k = Math.sin(Math.min(jumping, 0.62) / 0.62 * Math.PI);
+    sled.position.y = k * 0.85;
+    if (jumping > 0.62) jumping = 0;
+  }
+  if (sliding > 0) {
+    sliding -= dt;
+    sled.scale.y = 0.62;
+    sled.position.y = -0.1;
+  } else sled.scale.y = 1;
+
+  dogObjs.forEach((d, i) => {
+    const mesh = d.mesh;
+    mesh.visible = i < dogsUnlocked && !d.sat;
+    if (!mesh.visible) return;
+    mesh.position.x = laneX + (i % 2 === 0 ? -0.28 : 0.28);
+    mesh.position.z = -2.3 - i * 1.32;
+    const delay = i * 0.09;
+    const t = jumping > 0 ? jumping - delay : -1;
+    if (t > 0 && t < 0.62) {
+      const k = Math.sin((t / 0.62) * Math.PI);
+      const hop = k * d.spec.jump;
+      mesh.position.y = hop;
+      mesh.rotation.x = -k * 0.45;
+      if (d.spec.short && hop < 0.45 && t > 0.2) d.basket = 0.8;
+    } else if (d.basket > 0) {
+      d.basket -= dt;
+      mesh.position.set(laneX, 0.55, -0.2);
+      mesh.rotation.x = 0.2;
+    } else {
+      mesh.position.y = Math.abs(Math.sin(now / 90 + i)) * 0.05;
+      mesh.rotation.x = 0;
+    }
+    const ears = mesh.userData.ears;
+    if (ears) ears.rotation.x = d.hunger > 0.72 ? 0.7 : 0;
+  });
+
+  obstacles.forEach((o) => {
+    if (!o.live) return;
+    o.mesh.position.z += dt * speed;
+    if (alive && Math.abs(o.mesh.position.z) < 0.7 && Math.abs(o.mesh.position.x - laneX) < 0.95) {
+      const cleared = (o.kind === "branch" && sliding > 0) || (o.kind !== "branch" && jumping > 0.08);
+      if (!cleared) {
+        o.live = false;
+        o.mesh.visible = false;
+        heat -= 0.22;
+        toast(o.kind === "branch" ? "Branch. Slide." : "The wave missed.");
+        if (heat <= 0) fail("Cold stopped the sled.");
+      } else if (o.kind === "log") {
+        const short = dogObjs.find((d, i) => i < dogsUnlocked && d.spec.short && !d.sat);
+        if (short && jumping < 0.34) toast("Pip landed in the basket");
+      }
+    }
+    if (o.mesh.position.z > 6) {
+      o.live = false;
+      o.mesh.visible = false;
+    }
+  });
+  trees.forEach((t) => {
+    t.position.z += dt * speed;
+    if (t.position.z > 8) t.position.z -= 28 * 3.1 / 2;
+  });
+  const pos = snowBits.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let z = pos.getZ(i) + dt * speed * 0.6;
+    if (z > 4) z -= 40;
+    pos.setZ(i, z);
+  }
+  pos.needsUpdate = true;
+
+  document.getElementById("mile").textContent = mile.toFixed(1) + " mi · pin " + pin.toFixed(0);
+  document.getElementById("heat").style.width = Math.max(0, heat) * 100 + "%";
+  if (Math.floor(now / 400) % 2 === 0) renderMap();
+  camera.position.x += (laneX * 0.35 - camera.position.x) * 0.08;
+  camera.lookAt(laneX, 0.8, -6);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+dogObjs.forEach((d, i) => { d.mesh.visible = i < dogsUnlocked; });
+const boot = MushOrders.boot(run);
+run = boot.state;
+paintOrder();
+save(run);
+renderDogs();
+renderMap();
+applyBiome();
+boot.texts.forEach(toast);
+toast("Red is already pulling. Feed the ears.");
+deviceId();
+requestAnimationFrame(tick);
+pullRemote();
+</script>
+</body>
+</html>

@@ -531,9 +531,7 @@ async function supa(path, options) {
   const headers = Object.assign({
     apikey: cfg.anonKey,
     Authorization: "Bearer " + cfg.anonKey,
-    "Content-Type": "application/json",
-    "Accept-Profile": "mush",
-    "Content-Profile": "mush"
+    "Content-Type": "application/json"
   }, options.headers || {});
   const res = await fetch(cfg.url.replace(/\/$/, "") + "/rest/v1/" + path, {
     method: options.method || "GET",
@@ -551,7 +549,7 @@ async function flushQueue() {
   const q = readQueue();
   let index = 0;
   try {
-    await supa("profile?on_conflict=device_id", {
+    await supa("mush_profile?on_conflict=device_id", {
       method: "POST",
       headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
       body: { device_id: id }
@@ -559,19 +557,19 @@ async function flushQueue() {
     for (; index < q.length; index++) {
       const item = q[index];
       if (item.kind === "event") {
-        await supa("event", {
+        await supa("mush_event", {
           method: "POST",
           headers: { Prefer: "return=minimal" },
           body: { device_id: id, name: item.name, mile: item.mile, payload: item.payload || {} }
         });
       } else if (item.kind === "delivery") {
-        await supa("delivery", {
+        await supa("mush_delivery", {
           method: "POST",
           headers: { Prefer: "return=minimal" },
           body: { device_id: id, order_code: item.orderCode, status: item.status, mile: item.mile }
         });
       } else if (item.kind === "state") {
-        await supa("run_state?on_conflict=device_id", {
+        await supa("mush_run_state?on_conflict=device_id", {
           method: "POST",
           headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
           body: MushOrders.toRow(run, id)
@@ -592,12 +590,12 @@ async function pullRemote() {
   if (cfg && !playerMoved() && readQueue().length === 0) {
     try {
       const id = deviceId();
-      await supa("profile?on_conflict=device_id", {
+      await supa("mush_profile?on_conflict=device_id", {
         method: "POST",
         headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
         body: { device_id: id }
       });
-      const rows = await supa("run_state?device_id=eq." + encodeURIComponent(id) + "&select=*");
+      const rows = await supa("mush_run_state?device_id=eq." + encodeURIComponent(id) + "&select=*");
       const remote = rows && rows[0];
       if (remote && !playerMoved()) {
         run = MushOrders.mergeRemote(run, remote);

@@ -1,0 +1,13 @@
+{
+  "name": "mush-model-build",
+  "private": true,
+  "description": "Build-time only. Fetches CC0 source models, checks sha256, trims and quantizes them into mush/assets/models.",
+  "type": "module",
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "fflate": "0.8.2",
+    "three": "0.160.0"
+  }
+}

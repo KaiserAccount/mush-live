@@ -10,7 +10,8 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
-  ".webp": "image/webp"
+  ".webp": "image/webp",
+  ".glb": "model/gltf-binary"
 };
 
 function configScript() {
@@ -19,6 +20,19 @@ function configScript() {
   const ready = Boolean(url && anonKey);
   const value = ready ? { url: url, anonKey: anonKey } : null;
   return "window.MUSH_SUPABASE=" + JSON.stringify(value) + ";\n";
+}
+
+// The 3D model layer (mush/models.js) is added to the page here so the game
+// file itself stays untouched. If models.js or a .glb is missing, the game
+// keeps its primitive meshes.
+const modelTags =
+  '<script type="importmap">{ "imports": { "three": "./vendor/three/three-shim.js" } }</script>\n' +
+  '<script type="module" src="models.js"></script>\n';
+function withModels(buf) {
+  if (!fs.existsSync(path.join(root, "models.js"))) return buf;
+  const html = buf.toString("utf8");
+  const at = html.lastIndexOf("</body>");
+  return at === -1 ? buf : html.slice(0, at) + modelTags + html.slice(at);
 }
 
 const server = http.createServer((req, res) => {
@@ -46,7 +60,7 @@ const server = http.createServer((req, res) => {
     }
     const type = types[path.extname(file)] || "application/octet-stream";
     res.writeHead(200, { "content-type": type, "cache-control": "no-cache" });
-    res.end(data);
+    res.end(rel === "/index.html" ? withModels(data) : data);
   });
 });
 

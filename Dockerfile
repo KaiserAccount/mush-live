@@ -1,7 +1,20 @@
+# Stage 1: build-time models. Fetches CC0 source models (Quaternius husky via
+# Poly Pizza, Kenney Holiday/Nature/Mini Characters kits), checks each by
+# sha256, trims clips (no Death/Attack), quantizes, and writes
+# mush/assets/models/*.glb plus the GLTFLoader addon from three@0.160.0.
+# A model that fails to fetch or verify is skipped and the game keeps that
+# entity's primitive, so this stage never blocks a deploy on a bad mirror.
+FROM node:20-alpine AS models
+WORKDIR /build/tools
+COPY tools/package.json tools/build-models.mjs ./
+RUN npm install --no-audit --no-fund
+RUN node build-models.mjs /build/out
+
 FROM node:20-alpine
 WORKDIR /app
 COPY package.json server.js ./
 COPY mush ./mush
+COPY --from=models /build/out/ ./mush/
 # mush/three.min.js is three@0.160.0 build/three.min.js (669884 bytes), byte-identical
 # to the copy in KaiserAccount/mush. It is too large to push through the GitHub
 # connector, so it is fetched at build time and checked by sha256. If the file is
